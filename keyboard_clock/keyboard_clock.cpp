@@ -9,6 +9,8 @@
 #include <ctime>
 #include <map>
 #include <Windows.h>
+#include <WinUser.h>
+#include <conio.h>
 
 std::map<char, LogiLed::KeyName> char_to_keyname
 {
@@ -47,7 +49,21 @@ std::map<char, LogiLed::KeyName> char_to_keyname
 	{'7', LogiLed::KeyName::SEVEN},
 	{'8', LogiLed::KeyName::EIGHT},
 	{'9', LogiLed::KeyName::NINE},
-	{'0', LogiLed::KeyName::ZERO},
+	{'0', LogiLed::KeyName::ZERO}
+};
+
+std::map<char, LogiLed::KeyName> char_to_numpad
+{
+	{'1', LogiLed::KeyName::NUM_ONE},
+	{'2', LogiLed::KeyName::NUM_TWO},
+	{'3', LogiLed::KeyName::NUM_THREE},
+	{'4', LogiLed::KeyName::NUM_FOUR},
+	{'5', LogiLed::KeyName::NUM_FIVE},
+	{'6', LogiLed::KeyName::NUM_SIX},
+	{'7', LogiLed::KeyName::NUM_SEVEN},
+	{'8', LogiLed::KeyName::NUM_EIGHT},
+	{'9', LogiLed::KeyName::NUM_NINE},
+	{'0', LogiLed::KeyName::NUM_ZERO},
 };
 
 int main()
@@ -73,23 +89,37 @@ int main()
 	LogiLedSetLighting(0, 0, 0);
 
 	// Set some keys on keyboard
-	int secs = clock() / CLOCKS_PER_SEC;
-	bool key_pressed = 0;
+	int clock_secs = clock() / CLOCKS_PER_SEC;
 	std::string hour = "";
 	std::string min = "";
+	std::string sec = "";
 	
-	std::cout << "Press \"Esc\" to stop...";
+	std::cout << "Press \"Esc\" to stop..." << std::endl;
 
-	while (!key_pressed)
+	while (!GetAsyncKeyState(VK_ESCAPE))
 	{
-		while ((clock() / CLOCKS_PER_SEC - secs) < 5);
-		update_time(hour, min);
-		update_keyboard_leds(hour, min);
-		if (GetKeyState(VK_ESCAPE) && 0x8000)
-		{
-			key_pressed = 1;
-		}
-		secs = clock() / CLOCKS_PER_SEC;
+		update_time(hour, min, sec);
+		
+		// Clear board
+		LogiLedSetLighting(0, 0, 0);
+
+		// Set Esc to red
+		LogiLedSetLightingForKeyWithKeyName(LogiLed::KeyName::ESC, 100, 0, 0);
+
+		// Set hour to blue
+		update_keyboard_leds(hour, false, 0, 0, 255);
+		
+		// Set minute to orange
+		update_keyboard_leds(min, false, 229, 83, 0);
+		
+		// Set second to white
+		update_keyboard_leds(sec, true, 255, 255, 255);
+		
+		std::cout << "Hour: " << hour << " Min: " << min << " Sec: " << sec << std::endl;
+		
+		// Wait 1 second
+		while ((clock() / CLOCKS_PER_SEC - clock_secs) < 1);
+		clock_secs = clock() / CLOCKS_PER_SEC;
 	}
 
 	LogiLedRestoreLighting();
@@ -101,7 +131,7 @@ int main()
 	return 0;
 }
 
-void update_time(std::string& hr, std::string& min)
+void update_time(std::string& hr, std::string& min, std::string& sec)
 {
 	time_t now = time(0);
 	struct tm now_timeinfo;
@@ -119,6 +149,17 @@ void update_time(std::string& hr, std::string& min)
 	// Convert to strings
 	std::string cur_hr = get_hour_string(hour);
 	std::string cur_min = std::to_string(now_timeinfo.tm_min);
+	std::string cur_sec = std::to_string(now_timeinfo.tm_sec);
+
+	if (cur_min.length() == 1)
+	{
+		cur_min = "0" + cur_min;
+	}
+
+	if (cur_sec.length() == 1)
+	{
+		cur_sec = "0" + cur_sec;
+	}
 
 	// Compare strings and update
 	if (hr.compare(cur_hr) != 0)
@@ -130,26 +171,30 @@ void update_time(std::string& hr, std::string& min)
 	{
 		min = cur_min;
 	}
+
+	sec = cur_sec;
 }
 
-void update_keyboard_leds(std::string& hr_str, std::string& min_str)
+void update_keyboard_leds(std::string& keys, bool is_numpad, int red, int blue, int green)
 {
-	// TODO: Make this not suck
-	LogiLedSetLighting(0, 0, 0);
-	
-	for (int i = 0; i < hr_str.length(); i++)
-	{
-		LogiLedSetLightingForKeyWithKeyName(char_to_keyname[hr_str.at(i)], 100, 0, 0);
-	}
+	float red_perc = ((static_cast<float>(red) / 255) * 100);
+	float blue_perc = ((static_cast<float>(blue) / 255) * 100);
+	float green_perc = ((static_cast<float>(green) / 255) * 100);
 
-	if (min_str.length() < 2)
+	for (int i = 0; i < keys.length(); i++)
 	{
-		std::cout << "WTF?" << std::endl;
-	}
-	else
-	{
-		LogiLedSetLightingForKeyWithKeyName(char_to_keyname[min_str.at(0)], 0, 0, 100);
-		LogiLedSetLightingForKeyWithKeyName(char_to_keyname[min_str.at(1)], 0, 0, 100);
+		LogiLed::KeyName key;
+		
+		if (is_numpad)
+		{
+			key = char_to_numpad[keys.at(i)];
+		}
+		else
+		{
+			key = char_to_keyname[keys.at(i)];
+		}
+
+		LogiLedSetLightingForKeyWithKeyName(key, static_cast<int>(red_perc), static_cast<int>(blue_perc), static_cast<int>(green_perc));
 	}
 }
 
